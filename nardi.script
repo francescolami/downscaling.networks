@@ -1,33 +1,17 @@
-# NODF ---------------------------------------------------------------------------------------------------------------------------------
-
-NODF<-list()
-for (i in 1:length(list_sp_patch)){
-  NODF[[i]]<-nestednodf(list_sp_patch[[i]], weighted=T)
-}
-NODF
-# NODF significance (check whether empirical NODF is higher than expected by random):
-sig.NODF<-list()
-for (i in 1:length(list_sp_patch)){
-  sig.NODF[[i]]<-oecosimu(replace(list_sp_patch[[i]],list_sp_patch[[i]]>0,1),nestednodf,method="r2dtable",nsimul=1000,alternative=c("greater"))
-}
-sig.NODF
 
 # ------------------------------------------------------------------------------------------------- #
-# (2) Construct a null model to compare network parameters controlling for network size.            #
+#  Construct a null model to compare network parameters controlling for network size.            #
 #-------------------------------------------------------------------------------------------------- #
 
 # Features of null i-sp networks:
 # (a) Same size and species composition than empirical i-sp networks.
 # (b) patch act as generalists sampling from spider species used by the corresponding habitat.
 
-# Load data ------------------------------------------------------------------------------------------------------------------
-list_sp_patch<-list(d6_, d13_, d27_, d28_, d29_, d31_, d32_, d33_, d34_, db_, dk_, dx_, dy_, dz_)
-names(list_sp_patch)<-c("n6","n13","n27","n28","n29","n31","n32","n33","n34","nb","nk","nx","ny","nz")
 
  #load the datasets
 list_sp_patch<-list(d13_, d27_, d28_,d29_, d31_,d32_,d33_,d34_,d6_,db_,dk_,dx_,dy_,dz_)
 names(list_sp_patch)<-c("n13","n27","n28","n29","n31","n32","n33","n34","n6","nb","nk","nx","ny","nz")
-#elimino il sito w perchÃ¨ da errore (no patch singole)
+#elimino il sito w perchè da errore (no patch singole)
 #delete decimals numbers
 for (i in 1:length(list_sp_patch)) {
   list_sp_patch[[i]]<-round(list_sp_patch[[i]], digits = 2)
