@@ -1,0 +1,416 @@
+# NODF ---------------------------------------------------------------------------------------------------------------------------------
+
+NODF<-list()
+for (i in 1:length(list_sp_patch)){
+  NODF[[i]]<-nestednodf(list_sp_patch[[i]], weighted=T)
+}
+NODF
+# NODF significance (check whether empirical NODF is higher than expected by random):
+sig.NODF<-list()
+for (i in 1:length(list_sp_patch)){
+  sig.NODF[[i]]<-oecosimu(replace(list_sp_patch[[i]],list_sp_patch[[i]]>0,1),nestednodf,method="r2dtable",nsimul=1000,alternative=c("greater"))
+}
+sig.NODF
+
+# ------------------------------------------------------------------------------------------------- #
+# (2) Construct a null model to compare network parameters controlling for network size.            #
+#-------------------------------------------------------------------------------------------------- #
+
+# Features of null i-sp networks:
+# (a) Same size and species composition than empirical i-sp networks.
+# (b) patch act as generalists sampling from spider species used by the corresponding habitat.
+
+# Load data ------------------------------------------------------------------------------------------------------------------
+list_sp_patch<-list(d6_, d13_, d27_, d28_, d29_, d31_, d32_, d33_, d34_, db_, dk_, dx_, dy_, dz_)
+names(list_sp_patch)<-c("n6","n13","n27","n28","n29","n31","n32","n33","n34","nb","nk","nx","ny","nz")
+
+ #load the datasets
+list_sp_patch<-list(d13_, d27_, d28_,d29_, d31_,d32_,d33_,d34_,d6_,db_,dk_,dx_,dy_,dz_)
+names(list_sp_patch)<-c("n13","n27","n28","n29","n31","n32","n33","n34","n6","nb","nk","nx","ny","nz")
+#elimino il sito w perchÃ¨ da errore (no patch singole)
+#delete decimals numbers
+for (i in 1:length(list_sp_patch)) {
+  list_sp_patch[[i]]<-round(list_sp_patch[[i]], digits = 2)
+}
+for (i in 1:length(list_sp_patch)) {
+  for(n in 1:length(list_sp_patch[[i]])){
+    if (list_sp_patch[[i]][n]==0.33){
+      list_sp_patch[[i]][n]<-1
+    } else {
+      list_sp_patch[[i]][n]<-list_sp_patch[[i]][n]+0.01
+      }
+  }
+}
+for (i in 1:length(list_sp_patch)) {
+  list_sp_patch[[i]]<-round(list_sp_patch[[i]], digits = 0)
+}
+####elimino il W perchÃ¨ da errore (no patch singole)
+
+networks_i_sp<-list_sp_patch
+no.samples<-read.table(file="patch_hab.csv", sep=",", header=T) # Table with data of sampled species
+samples<-list(subset(no.samples,Site=="13"),subset(no.samples,Site=="27"),subset(no.samples,Site=="28")
+              ,subset(no.samples,Site=="29"),subset(no.samples,Site=="31"),subset(no.samples,Site=="32"),subset(no.samples,Site=="33")
+              ,subset(no.samples,Site=="34"),subset(no.samples,Site=="6"),subset(no.samples,Site=="b"),subset(no.samples,Site=="k"),
+              subset(no.samples,Site=="x"),subset(no.samples,Site=="y"),subset(no.samples,Site=="z")) # Subset data of each site
+
+# Construct null i-sp networks ------------------------------------------------------------------------------------------------
+# Null i-sp networks result from the combination of null i-sp submatrices for each species generated with Patefield algorithm.
+# Note that for species with only one individual sampled null i-sp submatrices can't be created.
+
+spp1<-list()
+for (i in 1:length(samples)){
+  spp1[[i]]<-as.character(subset(samples[[i]],samples[[i]]$n.hab==1)$habitat)
+}
+spp1 # List of species in each site with only one individual sampled.
+m1<-list()
+for(n in 1:length(networks_i_sp)){
+  subnetworks<-list()
+  for (i in 1:length(spp1[[n]])){
+    subnetworks[[i]]<-networks_i_sp[[n]][grep(spp1[[n]][i],rownames(networks_i_sp[[n]])),]
+    m1[[n]]<-do.call(rbind,subnetworks)
+  }
+}
+#m1 # Matrices with species with only one individual sampled.
+spp2<-list()
+for (i in 1:length(samples)){
+  spp2[[i]]<-as.character(subset(samples[[i]],samples[[i]]$n.hab>1)$habitat)
+}
+spp2 # List of species in each site with > 1 individual
+subnetworks<-list()
+for(n in 1:length(networks_i_sp)){
+  m<-list()
+  for (i in 1:length(spp2[[n]])){
+    m[[i]]<-networks_i_sp[[n]][grep(spp2[[n]][i],rownames(networks_i_sp[[n]])),]
+  }
+  subnetworks[[n]]<-m
+}
+#subnetworks # Submatrices i-sp for all species with > individual sampled.
+NULL.networks<-list()
+for(n in 1:length(subnetworks)){
+  null.subnetworks<-list()
+  # Generate 1,000 null i-sp submatrices for each species:
+  for (i in 1:length(subnetworks[[n]])){
+    null.subnetworks[[i]]<-nullmodel(subnetworks[[n]][[i]],N=1000,method=1) # method 1 = Fixed row and column totals.
+    for(j in 1:1000){
+      colnames(null.subnetworks[[i]][[j]])<-colnames(subnetworks[[n]][[i]])
+      rownames(null.subnetworks[[i]][[j]])<-rownames(subnetworks[[n]][[i]])
+    }
+  }
+  null.networks<-list()
+  # Combine null i-sp submatrices to create the complete null i-sp networks
+  for(j in 1:1000){
+    m2<-list()
+    null<-matrix()
+    for (i in 1:length(null.subnetworks)){
+      m2[[i]]<-null.subnetworks[[i]][[j]]
+      null<-do.call(rbind,m2)
+    }
+    null.networks[[j]]<-rbind(m1[[n]],null)
+    null.networks[[j]]<-null.networks[[j]][order(rownames(null.networks[[j]])),]
+  }
+  NULL.networks[[n]]<-null.networks
+}
+#NULL.networks[[1]] # List of 1,000 null i-sp networks for CN site
+#NULL.networks[[2]] # List of 1,000 null i-sp networks for PC site
+
+###fine script di TUR
+H2<-list()
+for (i in 1:length(NULL.networks)) {
+  a<-c()
+  for (n in 1:1000) {
+    a[n]<-networklevel(NULL.networks[[i]][[n]], index = "H2")
+  }
+  H2[[i]]<-a
+}
+H2
+H2obs<-list()
+for (i in 1:length(networks_i_sp)) {
+  H2obs[[i]]<- networklevel(networks_i_sp[[i]], index = "H2")
+}
+#calculate H2 significance
+H2sign<-list()
+for (i in 1:length(H2obs)) {
+  H2sign[[i]]<- (H2obs[[i]] - mean(H2[[i]]))/sd(H2[[i]])
+}
+H2sign
+
+
+
+######################################################################################
+# EVALUATION OF INCIDENCE AND MAGNITUDE OF INDIVIDUAL SPECIALIZATION                 #
+######################################################################################
+
+# Load and prepare data ----------------------------------------------------------------------------------------------------------------
+networks_i_sp<-list_sp_patch
+no.samples<-read.table(file="patch_hab.csv", sep=",", header=T) # Table with data of sampled species
+samples<-list(subset(no.samples,Site=="6"),subset(no.samples,Site=="13"),subset(no.samples,Site=="27"),subset(no.samples,Site=="28")
+              ,subset(no.samples,Site=="29"),subset(no.samples,Site=="31"),subset(no.samples,Site=="32"),subset(no.samples,Site=="33")
+              ,subset(no.samples,Site=="34"),subset(no.samples,Site=="b"),subset(no.samples,Site=="k"),
+              subset(no.samples,Site=="x"),subset(no.samples,Site=="y"),subset(no.samples,Site=="z")) # Subset data of each site
+
+# Subset species with >= 5 individuals captured:
+sp_names<-list()
+for(i in 1:length(samples)){
+  sp_names[[i]]<-as.character(subset(samples[[i]],samples[[i]]$n.hab>=3)$habitat)
+}
+sp_names
+#Subset interaction matrices for the species selected before:
+subnetworks<-list()
+for(n in 1:length(networks_i_sp)){
+  m<-list()
+  for (i in 1:length(sp_names[[n]])){
+    m[[i]]<-networks_i_sp[[n]][grep(sp_names[[n]][i],rownames(networks_i_sp[[n]])),] # Select rows with the sp names
+    m[[i]]<-m[[i]][,(colSums(m[[i]]))>0] # Remove the colums that have no interactions
+  }
+  subnetworks[[n]]<-m
+}
+subnetworks # List with i-sp submatrices
+
+#---------------------------------------------------------------------------------------------- #
+# (1) Comparison of linkage level of insect species (Lsp) with those of their individuals (Li)  #
+# --------------------------------------------------------------------------------------------- #
+
+Lsp<-list()
+for (i in 1:length(networks_sp_sp)){
+  Lsp[[i]]<-specieslevel(networks_sp_sp[[i]],index="degree")$'lower trophic level'
+}
+Lsp
+
+Li<-list()
+for (i in 1:length(networks_i_sp)){
+  Li[[i]]<-specieslevel(networks_i_sp[[i]],index="degree")$'lower trophic level'
+}
+Li
+
+#-------------------------------------------------------------------------- #
+# (2) Comparison of average empirical Li with average Li in null networks   #
+#-------------------------------------------------------------------------- #
+
+# Generate 1,000 null i-sp submatrices for each species -------------------------------------------------------------------------
+
+NULL.subnetworks<-list()
+for(n in 1:length(subnetworks)){
+  null.subnetworks<-list()
+  for (i in 1:length(subnetworks[[n]])){
+    null.subnetworks[[i]]<-nullmodel(subnetworks[[n]][[i]],N=1000,method=1) # method 1 = Fixed row and column totals
+    for(j in 1:1000){
+      colnames(null.subnetworks[[i]][[j]])<-colnames(subnetworks[[n]][[i]])
+      rownames(null.subnetworks[[i]][[j]])<-rownames(subnetworks[[n]][[i]])
+    }
+  }
+  NULL.subnetworks[[n]]<-null.subnetworks
+}
+
+# Calculate linkage level for empirical subnetworks ------------------------------------------------------------------------------
+
+mean.eLi<-list()
+for(n in 1:length(subnetworks)){
+  eLi<-c()
+  for (i in 1:length(subnetworks[[n]])){
+    eLi[i]<-colMeans(specieslevel(subnetworks[[n]][[i]],index='degree')$'lower trophic level')
+  }
+  names(eLi)<-sp_names[[n]]
+  mean.eLi[[n]]<-round(eLi,2)
+}
+
+# Calculate linkage level for null subnetworks -------------------------------------------------------------------------------------
+
+null.Li<-list()
+mean.null.li<-list()
+for(d in 1:length(NULL.subnetworks)){
+  lr<-list()
+  null.li<-c()
+  for(n in 1:length(NULL.subnetworks[[d]])){
+    linkage.random<-c()
+    for (i in 1:length(NULL.subnetworks[[d]][[n]])){
+      linkage.random[i]<-colMeans(specieslevel(NULL.subnetworks[[d]][[n]][[i]],index='degree')$'lower trophic level')
+    }
+    lr[[n]]<-linkage.random
+    null.li[n]<-round(mean(linkage.random),2)
+  }
+  null.Li[[d]]<-lr
+  mean.null.li[[d]]<-null.li
+  names(mean.null.li[[d]])<-sp_names[[d]]
+}
+
+mean.eLi # Average linkage level of individuals from each species in empirical i-sp subnetworks
+mean.null.li # Average linkage level of individuals from each species in 1,000 null i-sp networks
+
+#--------------------------------------------- #
+# (3) Nestedness (NODF) in i-sp subnetworks    #
+#--------------------------------------------- #
+
+NODF<-list()
+for(n in 1:length(subnetworks)){
+  nodf<-list()
+  for (i in 1:length(subnetworks[[n]])){
+    nodf[[i]]<-oecosimu(subnetworks[[n]][[i]],nestednodf,method="r2dtable",nsimul=1000,alternative=c("less"))
+  }
+  NODF[[n]]<-nodf
+  names(NODF[[n]])<-sp_names[[n]]
+}
+NODF # List with empirical NODF values for i-sp subnetworks of each selected species and significance level
+
+#----------------------------------------- #
+# (4) Individual specialization indices    #
+#----------------------------------------- #
+# Note: for more details on indices calculation please read Appendix S3 in Tur et al. 2013 and references therein.
+
+# WIC/TNW -------------------------------------------------------------------------------------------------------------
+
+#(1)--Calculation of index:
+
+indices<-list()
+for (n in 1:length(subnetworks)){
+  results<-matrix(data=NA,nrow=length(subnetworks[[n]]),ncol=4)
+  rownames(results)<-sp_names[[n]]
+  colnames(results)<-c("WIC","TNW","BIC","WIC/TNW")
+  for(i in 1:length(subnetworks[[n]])){
+    results[i,1]<-sum(
+      (rowSums(subnetworks[[n]][[i]])/sum(rowSums(subnetworks[[n]][[i]])))
+      *
+        (diversity(subnetworks[[n]][[i]],"shannon"))
+    )
+    results[i,2]<- -sum(
+      (colSums(subnetworks[[n]][[i]])/sum(rowSums(subnetworks[[n]][[i]])))
+      *
+        log((colSums(subnetworks[[n]][[i]])/sum(rowSums(subnetworks[[n]][[i]]))))
+    )
+    results[i,3]<-results[i,2]-results[i,1]
+    results[i,4]<-results[i,1]/results[i,2]
+  }
+  indices[[n]]<-round(results,2)
+}
+indices # List with WIC/TNW values for species in both study sites
+
+#(2)--Assess significance of WIC/TNW (i.e. calculate WIC/TNW values for null i-sp networks):
+
+null.wic.tnw<-list()
+for(d in 1:length(NULL.subnetworks)){
+  null.indices<-list()
+  for (n in 1:length(NULL.subnetworks[[d]])){
+    results<-matrix(data=NA,nrow=length(NULL.subnetworks[[d]][[n]]),ncol=4)
+    colnames(results)<-c("WIC","TNW","BIC","WIC/TNW")
+    for(i in 1:length(NULL.subnetworks[[d]][[n]])){
+      results[i,1]<-sum(
+        (rowSums(NULL.subnetworks[[d]][[n]][[i]])/sum(rowSums(NULL.subnetworks[[d]][[n]][[i]])))
+        *
+          (diversity(NULL.subnetworks[[d]][[n]][[i]],"shannon"))
+      )
+      results[i,2]<- -sum(
+        (colSums(NULL.subnetworks[[d]][[n]][[i]])/sum(rowSums(NULL.subnetworks[[d]][[n]][[i]])))
+        *
+          log((colSums(NULL.subnetworks[[d]][[n]][[i]])/sum(rowSums(NULL.subnetworks[[d]][[n]][[i]]))))
+      )
+      results[i,3]<-results[i,2]-results[i,1]
+      results[i,4]<-results[i,1]/results[i,2]
+    }
+    null.indices[[n]]<-results
+  }
+  null.wic.tnw[[d]]<-null.indices
+  names(null.wic.tnw[[d]])<-sp_names[[d]]
+}
+null.wic.tnw # List with null WIC/TNW values
+
+#(3)--Plot histogram with distribution of WIC/TNW values for null i-sp networks:
+
+op <- par(mfrow=c(2,7))
+for(n in 1:length(null.wic.tnw[[1]])){
+  op[[n]]<-hist(null.wic.tnw[[1]][[n]][,4],xlab="WIC/TNW",main=sp_names[[1]][n])
+}
+dev.new()
+op <- par(mfrow=c(2,4))
+for(n in 1:length(null.wic.tnw[[2]])){
+  op[[n]]<-hist(null.wic.tnw[[2]][[n]][,4],xlab="WIC/TNW",main=sp_names[[2]][n])
+}
+
+# PSi -----------------------------------------------------------------------------------------------------------------
+
+psi<-list()
+for(n in 1:length(subnetworks)){
+  pij<-list()
+  qj<-list()
+  Qj<-list()
+  for(i in 1:length(subnetworks[[n]])){
+    Qj[[i]]<-matrix(nrow=nrow(subnetworks[[n]][[i]]),ncol=ncol(subnetworks[[n]][[i]]))
+    colnames(Qj[[i]])<-colnames(subnetworks[[n]][[i]])
+  }
+  
+  abs_pij_qj<-list()
+  PSi<-list()
+  for (i in 1:length(subnetworks[[n]])){
+    pij[[i]]<-subnetworks[[n]][[i]]/rowSums(subnetworks[[n]][[i]])
+    qj[[i]]<-colSums(subnetworks[[n]][[i]])/sum(rowSums(subnetworks[[n]][[i]]))
+    for(d in 1:nrow(Qj[[i]])){
+      Qj[[i]][d,]<-qj[[i]]
+    }
+    abs_pij_qj[[i]]<-abs(pij[[i]]-Qj[[i]])
+    PSi[[i]]<-1-0.5*(rowSums(abs_pij_qj[[i]]))
+  }
+  psi[[n]]<-PSi
+}
+psi # List with PSi values for each individual
+hist(unlist(psi), main="", xlab="PSi", col="grey") # Histogram of PSi values
+
+
+#------------------------------------ #
+# (2) Intraspecific overlap (IO)      #
+#------------------------------------ #
+
+# Load and prepare data ----------------------------------------------------------------------------------------------------------
+
+networks_i_sp<-list_sp_patch
+list_hab<-list(habitat6, habitat13, habitat27, habitat28, habitat29, habitat31, 
+               habitat32, habitat33, habitat34, habitatb, habitatk, habitatw, habitatx, habitaty, habitatz)
+for (i in 1:length(list_hab)){
+  list_hab[[i]]$habtrap<- paste(list_hab[[i]]$habitat, list_hab[[i]]$patch)
+}
+for (i in 1:length(networks_i_sp)){
+  row.names(networks_i_sp[[i]])<-list_hab[[i]]$habtrap
+}
+
+no.samples<-read.table(file="patch_hab.csv", sep=",", header=T) # Table with data of sampled species
+samples<-list(subset(no.samples,site=="6"),subset(no.samples,site=="13"),subset(no.samples,site=="27"),
+              subset(no.samples,site=="28"), subset(no.samples,site=="29"), subset(no.samples,site=="31"), 
+              subset(no.samples,site=="32"), subset(no.samples,site=="33"), subset(no.samples,site=="34"), 
+              subset(no.samples,site=="b"), subset(no.samples,site=="k"), subset(no.samples,site=="w"), 
+              subset(no.samples,site=="x"), subset(no.samples,site=="y"), subset(no.samples,site=="z")) 
+# Subset data for selected species:
+sp_names<-list()
+for(i in 1:length(samples)){
+  sp_names[[i]]<-as.character(subset(samples[[i]],samples[[i]]$n.hab>=3)$habitat)
+}
+sp_names
+subnetworks<-list()
+for(n in 1:length(networks_i_sp)){
+  m<-list()
+  for (i in 1:length(sp_names[[n]])){
+    m[[i]]<-networks_i_sp[[n]][grep(sp_names[[n]][i],rownames(networks_i_sp[[n]])),]
+    m[[i]]<-m[[i]][,(colSums(m[[i]]))>0]
+  }
+  subnetworks[[n]]<-m
+}
+subnetworks # List with submatrices i-sp
+
+
+# Calculate IO --------------------------------------------------------------------------------------------------------------------
+
+intrasp.overlap<-list()
+for(n in 1:length(subnetworks)){
+  io<-list()
+  IO<-matrix(NA,nrow=length(subnetworks[[n]]))
+  row.names(IO)<-sp_names[[n]]
+  for(i in 1:length(subnetworks[[n]])){
+    io[[i]]<-degree_w((projecting_tm(subnetworks[[n]][[i]],method="sum")),measure=c("degree","output"), type="out")
+    IO[i,]<-sum(io[[i]][,3])/((ncol(subnetworks[[n]][[i]])*(nrow(subnetworks[[n]][[i]])-1))*nrow(subnetworks[[n]][[i]]))
+  }
+  intrasp.overlap[[n]]<-IO
+}
+intrasp.overlap
+
+## Difference in IO depends from number of patches?
+names(intrasp.overlap)<-c("n6","n13","n27","n28","n29","n31","n32","n33","n34","nb","nk","nw","nx","ny","nz")
+l<-list()
+for (i in 1:length(intrasp.overlap)){
+  l[[i]]<- rownames_to_column(intrasp.overlap[[i]],)
+}
